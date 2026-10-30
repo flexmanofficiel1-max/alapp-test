@@ -6,6 +6,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://jzochzdqntlygcallgxe.supabase.co wss://jzochzdqntlygcallgxe.supabase.co; worker-src 'self'; manifest-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'">
 <meta name="referrer" content="no-referrer">
 <title>ALapp TEST</title>
+<script>if("serviceWorker" in navigator){ window.addEventListener("load", function(){ navigator.serviceWorker.register("./sw.js", {scope:"./"}).catch(function(e){ console.log("sw", e); }); }); }</script>
 <meta name="theme-color" content="#0F5B3A">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1639,6 +1640,7 @@ function renderNotif(){
 // ----- paramètres
 async function loadSettings(){
   if(!mystats) loadMyStats();
+  pushState().then(x => { pstate = x; if(tab === "settings" && !editing) render(); });
   const g = path => withAuth(t => sb(path, {}, t)).catch(() => null);
   const [bl, ad, su] = await Promise.all([g("/rest/v1/blocages?bloqueur=eq." + session.id + "&select=bloque,profiles!blocages_bloque_fkey(nom,pseudo)"), g("/rest/v1/admins?utilisateur=eq." + session.id + "&select=utilisateur"), g("/rest/v1/suppressions?utilisateur=eq." + session.id + "&select=demande_le")]);
   setl = {bl:bl || [], sup:!!(su && su.length)}; isAdmin = !!(ad && ad.length);
@@ -1647,12 +1649,13 @@ async function loadSettings(){
 function renderSettings(){
   const p = profile;
   const row = (id, label, on) => '<label class="tgl"><span>' + label + '</span><input type="checkbox" id="' + id + '"' + (on ? " checked" : "") + '></label>';
-  app.innerHTML = topbar("Paramètres") + '<h4 class="sec">Certification</h4>' + certCard() + '<h4 class="sec">Confidentialité</h4><div class="card">' + row("t_pa", "Profil visible seulement par mes abonnés", p.profil_abonnes) + row("t_af", "Afficher ma filière", p.afficher_filiere !== false) + '</div><h4 class="sec">Notifications</h4><div class="card">' + row("t_nm", "Messages", p.notif_messages !== false) + row("t_na", "Abonnés et J’aime", p.notif_abonnes !== false) + row("t_nc", "Commentaires et réponses", p.notif_commentaires !== false) + '</div><h4 class="sec">Utilisateurs bloqués</h4><div class="card">' + (setl.bl.length ? setl.bl.map(b => '<div class="rw"><div class="m"><b>' + esc((b.profiles && (b.profiles.nom || b.profiles.pseudo)) || "Étudiant") + '</b></div><button class="sm g" data-ub="' + b.bloque + '">Débloquer</button></div>').join("") : '<small>Aucun utilisateur bloqué.</small>') + '</div>' + (isAdmin ? '<h4 class="sec">Modération</h4><button class="s1b" id="addash">Tableau de bord administrateur</button><button class="s1b" id="adrep">Voir les signalements</button>' : '') + '<h4 class="sec">Informations légales</h4><button class="g" data-lg="cgu">Conditions d’utilisation</button><button class="g" data-lg="conf">Politique de confidentialité</button><button class="g" data-lg="regles">Règles de conduite</button><h4 class="sec">Compte</h4><button class="g" id="pwd">Changer mon mot de passe</button><button class="g" id="lall">Me déconnecter de tous les appareils</button><button class="g" id="lo">Se déconnecter</button>' + (setl.sup ? '<p class="s">Ta demande de suppression est enregistrée : ton compte sera supprimé sous 30 jours.</p>' : '<p class="s"><span class="lnk dng" id="delacc">Demander la suppression de mon compte</span></p>');
+  app.innerHTML = topbar("Paramètres") + '<h4 class="sec">Certification</h4>' + certCard() + pushCard() + '<h4 class="sec">Confidentialité</h4><div class="card">' + row("t_pa", "Profil visible seulement par mes abonnés", p.profil_abonnes) + row("t_af", "Afficher ma filière", p.afficher_filiere !== false) + '</div><h4 class="sec">Notifications</h4><div class="card">' + row("t_nm", "Messages", p.notif_messages !== false) + row("t_na", "Abonnés et J’aime", p.notif_abonnes !== false) + row("t_nc", "Commentaires et réponses", p.notif_commentaires !== false) + '</div><h4 class="sec">Utilisateurs bloqués</h4><div class="card">' + (setl.bl.length ? setl.bl.map(b => '<div class="rw"><div class="m"><b>' + esc((b.profiles && (b.profiles.nom || b.profiles.pseudo)) || "Étudiant") + '</b></div><button class="sm g" data-ub="' + b.bloque + '">Débloquer</button></div>').join("") : '<small>Aucun utilisateur bloqué.</small>') + '</div>' + (isAdmin ? '<h4 class="sec">Modération</h4><button class="s1b" id="addash">Tableau de bord administrateur</button><button class="s1b" id="adrep">Voir les signalements</button>' : '') + '<h4 class="sec">Informations légales</h4><button class="g" data-lg="cgu">Conditions d’utilisation</button><button class="g" data-lg="conf">Politique de confidentialité</button><button class="g" data-lg="regles">Règles de conduite</button><h4 class="sec">Compte</h4><button class="g" id="pwd">Changer mon mot de passe</button><button class="g" id="lall">Me déconnecter de tous les appareils</button><button class="g" id="lo">Se déconnecter</button>' + (setl.sup ? '<p class="s">Ta demande de suppression est enregistrée : ton compte sera supprimé sous 30 jours.</p>' : '<p class="s"><span class="lnk dng" id="delacc">Demander la suppression de mon compte</span></p>');
   $("#cb").onclick = () => go("profile");
   $("#lo").onclick = logout;
   $("#pwd").onclick = async () => { const n = prompt("Nouveau mot de passe (8 caractères minimum, avec lettres et chiffres)"); if(!n) return; if(!pwOk(n)){ alert(PWMSG); return; } try{ await withAuth(t => sb("/auth/v1/user", {method:"PUT", body:JSON.stringify({password:n})}, t)); alert("Mot de passe modifié."); }catch(e){ alert(e.message); } };
   $("#lall").onclick = async () => { if(!confirm("Te déconnecter de tous tes appareils, y compris celui-ci ?")) return; try{ await withAuth(t => sb("/auth/v1/logout?scope=global", {method:"POST"}, t)); }catch(e){} logout(); };
   const tg = (id, col) => { const el = $(id); el.onchange = async () => { const v = el.checked; try{ await withAuth(t => sb("/rest/v1/profiles?id=eq." + session.id, {method:"PATCH", headers:{Prefer:"return=minimal"}, body:JSON.stringify({[col]:v})}, t)); profile = {...profile, [col]:v}; store.set("alapp_session", {session, profile}); }catch(e){ alert(e.message); el.checked = !v; } }; };
+  { const pb = $("#psb"); if(pb) pb.onclick = async () => { pb.disabled = true; try{ if(pstate === "actif") await pushOff(); else await pushOn(true); }catch(e){ alert(e.message); } pstate = await pushState(); render(); }; }
   tg("#t_pa", "profil_abonnes"); tg("#t_af", "afficher_filiere"); tg("#t_nm", "notif_messages"); tg("#t_na", "notif_abonnes"); tg("#t_nc", "notif_commentaires");
   document.querySelectorAll("[data-ub]").forEach(b => b.onclick = async () => { try{ await withAuth(t => sb("/rest/v1/blocages?bloque=eq." + b.dataset.ub + "&bloqueur=eq." + session.id, {method:"DELETE", headers:{Prefer:"return=minimal"}}, t)); }catch(e){ alert(e.message); } await loadBadges(); loadSettings(); });
   const ar = $("#adrep"); if(ar) ar.onclick = () => { tab = "reports"; render(); loadReports(); };
@@ -1867,6 +1870,40 @@ function renderForgot(){
   };
 }
 
+// ----- notifications sur l'écran (Web Push)
+const VAPID_PUB = "BE3fW3-_Rt9S5ImXX5KbVd1_X9NZ-lemO2W1C17CjCNaS62cHA3tXseK0YMguifhpXa_0zqXjQSWeczcBGeRa8Y";
+const b64u = v => { const pad = "=".repeat((4 - v.length % 4) % 4), r = atob((v + pad).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(r, c => c.charCodeAt(0)); };
+let pstate = "…";
+async function pushState(){
+  if(!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return "non";
+  if(Notification.permission === "denied") return "refuse";
+  try{ const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); return sub ? "actif" : "inactif"; }catch(e){ return "non"; }
+}
+async function pushOn(ask){
+  if(ask){ const perm = await Notification.requestPermission(); if(perm !== "granted") throw new Error("Autorisation refusée."); }
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if(!sub) sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64u(VAPID_PUB)});
+  const j = sub.toJSON();
+  await rpc("push_enregistrer", {p_endpoint:j.endpoint, p_p256dh:j.keys.p256dh, p_auth:j.keys.auth});
+  store.set("push_" + session.id, 1);
+}
+async function pushOff(){
+  const reg = await navigator.serviceWorker.getRegistration(), sub = reg && await reg.pushManager.getSubscription();
+  if(sub){ try{ await rpc("push_supprimer", {p_endpoint:sub.endpoint}); }catch(e){} await sub.unsubscribe(); }
+  store.del("push_" + session.id);
+}
+function pushSync(){ if(session && "Notification" in window && Notification.permission === "granted" && store.get("push_" + session.id)) pushOn(false).catch(() => {}); }
+function pushCard(){
+  const t = {
+    "…": ["Vérification…", ""],
+    non: ["Ton navigateur ne permet pas les notifications sur l’écran.", ""],
+    refuse: ["Tu as bloqué les notifications. Autorise-les dans les réglages du site (le cadenas à côté de l’adresse), puis reviens ici.", ""],
+    inactif: ["Reçois une alerte sur l’écran de ton téléphone pour les messages, les abonnements et les invitations, même quand l’application est fermée.", '<button id="psb">Activer</button>'],
+    actif: ["Activées sur cet appareil ✓", '<button class="g" id="psb">Désactiver</button>']
+  }[pstate] || ["", ""];
+  return '<h4 class="sec">Notifications sur l’écran</h4><div class="card"><p class="s" style="margin:0 0 8px">' + t[0] + '</p>' + t[1] + '</div>';
+}
 const pwOk = p => String(p || "").length >= 8 && /[a-z]/i.test(p) && /\d/.test(p);
 const PWMSG = "Mot de passe : 8 caractères minimum, avec au moins une lettre et un chiffre.";
 const NAVKEY = () => "alapp_nav:" + SUPABASE_URL;
@@ -1975,14 +2012,14 @@ async function submit(){
   }
 }
 
-function logout(){ try{ sessionStorage.removeItem(NAVKEY()); }catch(e){} solo = null; session = null; profile = null; posts = []; tab = "feed"; clearInterval(poll); peer = null; convs = []; gcreate = false; psetup = false; closeStory(); store.del("alapp_session"); mode = "splash"; render(); }
+function logout(){ try{ sessionStorage.removeItem(NAVKEY()); }catch(e){} try{ navigator.serviceWorker.getRegistration().then(r => r && r.pushManager.getSubscription()).then(x => x && x.unsubscribe()).catch(() => {}); }catch(e){} solo = null; session = null; profile = null; posts = []; tab = "feed"; clearInterval(poll); peer = null; convs = []; gcreate = false; psetup = false; closeStory(); store.del("alapp_session"); mode = "splash"; render(); }
 
 let navBoot = null; try{ navBoot = JSON.parse(sessionStorage.getItem(NAVKEY()) || "null"); }catch(e){}
 const sp = store.get("alapp_pend"); if(sp){ pend = sp; mode = "verify"; }
 const saved = store.get("alapp_session");
 if(saved && saved.session){ session = saved.session; profile = saved.profile; }
 render();
-if(session){ loadPosts(); loadBadges(); restoreNav(); }
+if(session){ loadPosts(); loadBadges(); restoreNav(); pushSync(); }
 setInterval(() => { if(session) loadBadges(); }, 45000);
 setInterval(pollList, 2500);
 </script>
